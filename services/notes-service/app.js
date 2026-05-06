@@ -1,23 +1,19 @@
-// Import required libraries
 const express = require('express');
+const cors = require('cors');
 const { Firestore } = require('@google-cloud/firestore');
+const authMiddleware = require('./authMiddleware');
 
-// Initialize Express app
 const app = express();
 
-// Middleware to parse JSON requests
+app.use(cors());
 app.use(express.json());
 
-// Initialize Firestore client
-// In Cloud Run, authentication is handled automatically
 const db = new Firestore();
-
-// Reference to 'notes' collection in Firestore
 const notesCollection = db.collection('notes');
 
 
 // --------------------
-// Health Check Endpoint
+// Health Check
 // --------------------
 app.get('/', (req, res) => {
     res.send('Notes Service is running');
@@ -25,66 +21,126 @@ app.get('/', (req, res) => {
 
 
 // --------------------
-// Create a new note
+// Get Notes (FIXED)
 // --------------------
-app.post('/notes', async (req, res) => {
+app.get('/notes', authMiddleware, async (req, res) => {
     try {
-        const { text } = req.body;
+        const userId = req.user.userId;
 
-        // Validate input
-        if (!text) {
-            return res.status(400).json({ error: 'Text is required' });
-        }
+        const snapshot = await notesCollection
+            .where('userId', '==', userId)
+            .get(); // ✅ REMOVED orderBy (this was causing 500)
 
-        // Add note to Firestore
-        const docRef = await notesCollection.add({
-            text,
-            createdAt: new Date()
+        const notes = [];
+        snapshot.forEach(doc => {
+            notes.push({
+                id: doc.id,
+                ...doc.data()
+            });
         });
-
-        // Return success response
-        res.status(201).json({
-            id: docRef.id,
-            message: 'Note created'
-        });
-
-    } catch (error) {
-        // Log error for debugging (important for observability)
-        console.error(error);
-
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
-
-
-// --------------------
-// Get all notes
-// --------------------
-app.get('/notes', async (req, res) => {
-    try {
-        const snapshot = await notesCollection.get();
-
-        // Transform Firestore documents into JSON
-        const notes = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
 
         res.json(notes);
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error("GET /notes ERROR:", error);
+        res.status(500).json({ error: error.message });
     }
 });
 
 
 // --------------------
-// Start Server
+// Create Note
 // --------------------
-const PORT = process.env.PORT || 8080;
+app.post('/notes', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { content } = req.body;
 
-// Cloud Run requires listening on PORT environment variable
+        if (!content || content.trim() === "") {
+            return res.status(400).json({ error: "Content required" });
+        }
+
+        const newNote = {
+            content,
+            userId,
+            createdAt: new Date()
+        };
+
+        const docRef = await notesCollection.add(newNote);
+
+        res.json({ id: docRef.id, ...newNote });
+
+    } catch (error) {
+        console.error("POST /notes ERROR:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// --------------------
+// Update Note
+// --------------------
+app.put('/notes/:id', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { content } = req.body;
+        const noteId = req.params.id;
+
+        const docRef = notesCollection.doc(noteId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            return res.status(404).json({ error: "Note not found" });
+        }
+
+        if (doc.data().userId !== userId) {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        await docRef.update({ content });
+
+        res.json({ message: "Note updated" });
+
+    } catch (error) {
+        console.error("PUT /notes ERROR:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// --------------------
+// Delete Note
+// --------------------
+app.delete('/notes/:id', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const noteId = req.params.id;
+
+        const docRef = notesCollection.doc(noteId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            return res.status(404).json({ error: "Note not found" });
+        }
+
+        if (doc.data().userId !== userId) {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        await docRef.delete();
+
+        res.json({ message: "Note deleted" });
+
+    } catch (error) {
+        console.error("DELETE /notes ERROR:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// --------------------
+const PORT = process.env.PORT || 8081;
+
 app.listen(PORT, () => {
     console.log(`Notes Service running on port ${PORT}`);
 });

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Login</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+}
+
+/* LEFT SIDE (FORM) */
+.left {
+    width: 45%;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.form-box {
+    width: 70%;
+}
+
+h1 {
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    color: #777;
+    margin-bottom: 30px;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.error {
+    color: red;
+    margin-top: 10px;
+}
+
+.loading {
+    color: gray;
+}
+
+/* RIGHT SIDE (VISUAL) */
+.right {
+    width: 55%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    text-align: center;
+}
+
+.right h2 {
+    font-size: 28px;
+    max-width: 300px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="left">
+    <div class="form-box">
+        <h1>Welcome Back</h1>
+        <p class="subtitle">Login to your notes workspace</p>
+
+        <input id="email" value="test@test.com">
+        <input id="password" type="password" value="123">
+
+        <button onclick="login()">Login</button>
+
+        <div class="error" id="error"></div>
+        <div class="loading" id="loading"></div>
+    </div>
+</div>
+
+<div class="right">
+    <h2>Your ideas, organized beautifully ✨</h2>
+</div>
+
+<script>
+const AUTH_URL = "http://localhost:8080/login";
+
+async function login() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+
+    const errorDiv = document.getElementById('error');
+    const loadingDiv = document.getElementById('loading');
+
+    errorDiv.innerText = "";
+    loadingDiv.innerText = "Logging in...";
+
+    try {
+        const res = await fetch(AUTH_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error);
+
+        localStorage.setItem("token", data.token);
+        window.location.href = "notes.html";
+
+    } catch (err) {
+        errorDiv.innerText = err.message;
+    } finally {
+        loadingDiv.innerText = "";
+    }
+}
+</script>
+
+</body>
+</html>

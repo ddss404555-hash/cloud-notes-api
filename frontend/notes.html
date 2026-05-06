@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>My Notes</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+body {
+    margin: 0;
+    background: #f5f7fb;
+}
+
+/* HEADER */
+.header {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.logout {
+    cursor: pointer;
+}
+
+/* MAIN */
+.container {
+    max-width: 800px;
+    margin: auto;
+    margin-top: 30px;
+}
+
+/* ADD BOX */
+.add-box {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    margin-bottom: 10px;
+}
+
+button {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.add-btn {
+    background: #667eea;
+    color: white;
+}
+
+/* NOTES */
+.note {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.actions button {
+    margin-left: 5px;
+}
+
+.edit {
+    background: #ffc107;
+}
+
+.delete {
+    background: #dc3545;
+    color: white;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+    <h2>My Notes</h2>
+    <div class="logout" onclick="logout()">Logout</div>
+</div>
+
+<div class="container">
+
+<div class="add-box">
+    <input id="noteInput" placeholder="Write a note..." />
+    <button class="add-btn" onclick="addNote()">Add Note</button>
+</div>
+
+<div id="notesList"></div>
+
+</div>
+
+<script>
+
+const NOTES_URL = "http://localhost:8081/notes";
+
+function getToken() {
+    return localStorage.getItem("token");
+}
+
+function logout() {
+    localStorage.removeItem("token");
+    window.location.href = "index.html";
+}
+
+/* LOAD */
+async function loadNotes() {
+    const res = await fetch(NOTES_URL, {
+        headers: { Authorization: "Bearer " + getToken() }
+    });
+
+    const notes = await res.json();
+
+    const container = document.getElementById("notesList");
+    container.innerHTML = "";
+
+    notes.forEach(note => {
+        const div = document.createElement("div");
+        div.className = "note";
+
+        div.innerHTML = `
+            <span>${note.content}</span>
+            <div class="actions">
+                <button class="edit" onclick="editNote('${note.id}', '${note.content}')">Edit</button>
+                <button class="delete" onclick="deleteNote('${note.id}')">Delete</button>
+            </div>
+        `;
+
+        container.appendChild(div);
+    });
+}
+
+/* ADD */
+async function addNote() {
+    const content = document.getElementById("noteInput").value;
+
+    await fetch(NOTES_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + getToken()
+        },
+        body: JSON.stringify({ content })
+    });
+
+    document.getElementById("noteInput").value = "";
+    loadNotes();
+}
+
+/* DELETE */
+async function deleteNote(id) {
+    await fetch(`${NOTES_URL}/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + getToken() }
+    });
+
+    loadNotes();
+}
+
+/* EDIT */
+async function editNote(id, oldContent) {
+    const newContent = prompt("Edit note:", oldContent);
+    if (!newContent) return;
+
+    await fetch(`${NOTES_URL}/${id}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + getToken()
+        },
+        body: JSON.stringify({ content: newContent })
+    });
+
+    loadNotes();
+}
+
+loadNotes();
+
+</script>
+
+</body>
+</html>
